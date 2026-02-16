@@ -24,7 +24,7 @@ class GateWireClient {
       if (templateKey != null) 'template_key': templateKey,
     };
 
-    final response = await _request('POST', '/dispatch', body);
+    final response = await _request('POST', '/send-otp', body);
     return GateWireResponse.fromJson(response);
   }
 
@@ -33,10 +33,7 @@ class GateWireClient {
     required String referenceId,
     required String code,
   }) async {
-    final body = {
-      'reference_id': referenceId,
-      'code': code,
-    };
+    final body = {'reference_id': referenceId, 'code': code};
 
     final response = await _request('POST', '/verify-otp', body);
     return OtpVerificationResponse.fromJson(response);
