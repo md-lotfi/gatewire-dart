@@ -34,7 +34,6 @@ final gatewire = GateWireClient(apiKey: 'sk_live_YOUR_KEY_HERE');
 try {
   final response = await gatewire.dispatch(
     phone: '+213555123456', 
-    message: 'Your code is: 1234'
   );
   
   print('SMS Sent! Ref ID: ${response.referenceId}');
@@ -50,16 +49,24 @@ Templates allow you to skip the standard queue (Priority Route).
 ```dart
 final response = await gatewire.dispatch(
   phone: '+213555123456',
-  templateKey: 'login_otp', // Configured in Dashboard
-  priority: true
+  templateKey: 'login_otp', // Example configured in client dashboard
 );
 ```
 
-### 4. Checking Balance
+### 2. Verify a CODE
 
 ```dart
-final balance = await gatewire.getBalance();
-print('Remaining: ${balance.balance} DZD');
+try {
+  final response = await gatewire.verifyOtp(
+    referenceId: 'REFERENCE_ID_KEY',
+    code: 'VERFICATION_CODE' 
+  );
+  
+  print('Verification response : ${response.message}, ${response.status}');
+  
+} on GateWireException catch (e) {
+  print('Failed: ${e.message}');
+}
 ```
 
 ## License

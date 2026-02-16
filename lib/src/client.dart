@@ -17,28 +17,30 @@ class GateWireClient {
   /// Send an SMS or OTP
   Future<GateWireResponse> dispatch({
     required String phone,
-    String? message,
     String? templateKey,
-    bool priority = false,
   }) async {
     final body = {
       'phone': phone,
-      if (message != null) 'message': message,
       if (templateKey != null) 'template_key': templateKey,
-      if (priority) 'priority': 'high',
     };
 
     final response = await _request('POST', '/dispatch', body);
     return GateWireResponse.fromJson(response);
   }
 
-  /// Get current wallet balance
-  Future<GateWireBalance> getBalance() async {
-    final response = await _request('GET', '/balance');
-    return GateWireBalance.fromJson(response);
-  }
+  /// Verify an OTP code
+  Future<OtpVerificationResponse> verifyOtp({
+    required String referenceId,
+    required String code,
+  }) async {
+    final body = {
+      'reference_id': referenceId,
+      'code': code,
+    };
 
-  // --- Internal Helper ---
+    final response = await _request('POST', '/verify-otp', body);
+    return OtpVerificationResponse.fromJson(response);
+  }
 
   Future<Map<String, dynamic>> _request(
     String method,

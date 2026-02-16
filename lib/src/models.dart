@@ -1,33 +1,27 @@
 class GateWireResponse {
   final String referenceId;
   final String status;
-  final double? cost;
 
-  GateWireResponse({
-    required this.referenceId,
-    required this.status,
-    this.cost,
-  });
+  GateWireResponse({required this.referenceId, required this.status});
 
   factory GateWireResponse.fromJson(Map<String, dynamic> json) {
     return GateWireResponse(
       referenceId: json['reference_id'] ?? '',
       status: json['status'] ?? 'unknown',
-      cost: json['cost'] != null ? (json['cost'] as num).toDouble() : null,
     );
   }
 }
 
-class GateWireBalance {
-  final double balance;
-  final String currency;
+class OtpVerificationResponse {
+  final String status;
+  final String message;
 
-  GateWireBalance({required this.balance, required this.currency});
+  OtpVerificationResponse({required this.status, required this.message});
 
-  factory GateWireBalance.fromJson(Map<String, dynamic> json) {
-    return GateWireBalance(
-      balance: (json['balance'] as num).toDouble(),
-      currency: json['currency'] ?? 'DZD',
+  factory OtpVerificationResponse.fromJson(Map<String, dynamic> json) {
+    return OtpVerificationResponse(
+      status: json['status'] ?? 'unknown',
+      message: json['message'] ?? '',
     );
   }
 }
