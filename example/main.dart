@@ -1,4 +1,4 @@
-import 'package:gatewire/gatewire.dart';
+import 'package:gatewire_dart/gatewire.dart';
 
 void main() async {
   final client = GateWireClient(apiKey: 'your-api-key');
