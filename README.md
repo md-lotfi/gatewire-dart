@@ -16,14 +16,14 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  gatewire: ^1.0.0
+  gatewire: ^1.0.3
 ```
 
 ## Usage
 ### 1. Initialization
 
 ```dart
-import 'package:gatewire/gatewire.dart';
+import 'package:gatewire_dart/gatewire_dart.dart';
 
 final gatewire = GateWireClient(apiKey: 'sk_live_YOUR_KEY_HERE');
 ```
