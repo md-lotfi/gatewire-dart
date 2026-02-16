@@ -1,6 +1,6 @@
 name: gatewire_dart
 description: "Official Flutter SDK for the GateWire decentralized SMS infrastructure."
-version: 1.0.1
+version: 1.0.2
 homepage: https://gatewire.raystate.com
 
 environment:
