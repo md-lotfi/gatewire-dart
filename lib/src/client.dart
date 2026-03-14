@@ -10,7 +10,7 @@ class GateWireClient {
 
   GateWireClient({
     required this.apiKey,
-    this.baseUrl = 'https://gatewire.raystate.com/api/v1',
+    this.baseUrl = 'https://gatewire.net/api/v1',
     http.Client? client,
   }) : _httpClient = client ?? http.Client();
 

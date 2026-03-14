@@ -1,6 +1,6 @@
 # GateWire Flutter SDK
 
-The official Flutter plugin for the **[GateWire SMS Infrastructure](https://gatewire.raystate.com)**.
+The official Flutter plugin for the **[GateWire SMS Infrastructure](https://gatewire.net)**.
 
 Easily integrate SMS notifications, OTPs, and alerts into your Flutter Android & iOS applications using our decentralized mesh network.
 
