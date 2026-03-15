@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'exceptions.dart';
 import 'models.dart';
+import 'pnv/pnv_service.dart';
 
 class GateWireClient {
   final String apiKey;
@@ -13,6 +14,12 @@ class GateWireClient {
     this.baseUrl = 'https://gatewire.net/api/v1',
     http.Client? client,
   }) : _httpClient = client ?? http.Client();
+
+  /// Phone Number Verification service backed by the same HTTP client.
+  ///
+  /// Use [PnvService.dialAndVerify] for the full one-call flow, or call
+  /// [PnvService.initiate] and [PnvService.verify] separately.
+  late final PnvService pnv = PnvService(_httpClient, apiKey, baseUrl);
 
   /// Send an SMS or OTP
   Future<GateWireResponse> dispatch({
