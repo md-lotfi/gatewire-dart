@@ -51,8 +51,21 @@ class PnvService {
   /// - 422 Validation error (e.g. invalid phone number format)
   /// - 429 Rate limited
   Future<PnvSession> initiate({required String phoneNumber}) async {
-    final data = await _request('/pnv/initiate', {'phone_number': phoneNumber});
-    return PnvSession.fromJson(data);
+    try {
+      final data =
+          await _request('/pnv/initiate', {'phone_number': phoneNumber});
+      return PnvSession.fromJson(data);
+    } on GateWireException catch (e) {
+      if (e.statusCode == 403) {
+        throw GateWireException(
+          'Phone Number Verification is not enabled for your account. '
+          'Enable it from your dashboard.',
+          403,
+          'service_disabled',
+        );
+      }
+      rethrow;
+    }
   }
 
   /// Step 2 — submits the raw USSD [ussdResponse] string captured from the

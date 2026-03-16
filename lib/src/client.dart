@@ -6,6 +6,7 @@ import 'models.dart';
 import 'phone_verification_result.dart';
 import 'pnv/models/pnv_session.dart';
 import 'pnv/pnv_service.dart';
+import 'services/services_service.dart';
 
 class GateWireClient {
   final String apiKey;
@@ -24,6 +25,20 @@ class GateWireClient {
   /// [PnvService.initiate] and [PnvService.verify] separately.
   late final PnvService pnv = PnvService(_httpClient, apiKey, baseUrl);
 
+  /// Service discovery — fetches and caches which services are enabled for
+  /// this API key.
+  ///
+  /// Call [ServicesService.fetchCatalog] before showing verification UI to
+  /// determine which options to offer the user:
+  /// ```dart
+  /// final catalog = await gw.services.fetchCatalog();
+  ///
+  /// if (catalog.otp.enabled) { /* show OTP */ }
+  /// if (catalog.isPnvAvailableOnThisDevice) { /* show PNV */ }
+  /// ```
+  late final ServicesService services =
+      ServicesService(_httpClient, apiKey, baseUrl);
+
   /// Send an SMS or OTP
   Future<GateWireResponse> dispatch({
     required String phone,
@@ -34,8 +49,20 @@ class GateWireClient {
       if (templateKey != null) 'template_key': templateKey,
     };
 
-    final response = await _request('POST', '/send-otp', body);
-    return GateWireResponse.fromJson(response);
+    try {
+      final response = await _request('POST', '/send-otp', body);
+      return GateWireResponse.fromJson(response);
+    } on GateWireException catch (e) {
+      if (e.statusCode == 403) {
+        throw GateWireException(
+          'OTP service is not enabled for your account. '
+          'Enable it from your dashboard.',
+          403,
+          'service_disabled',
+        );
+      }
+      rethrow;
+    }
   }
 
   /// Verify an OTP code

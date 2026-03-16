@@ -5,3 +5,5 @@ export 'src/pnv/pnv_service.dart';
 export 'src/pnv/models/pnv_session.dart';
 export 'src/pnv/models/pnv_result.dart';
 export 'src/phone_verification_result.dart';
+export 'src/services/services_service.dart';
+export 'src/services/models/service_catalog.dart';
