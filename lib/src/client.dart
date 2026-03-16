@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:http/http.dart' as http;
 import 'exceptions.dart';
 import 'models.dart';
+import 'phone_verification_result.dart';
+import 'pnv/models/pnv_session.dart';
 import 'pnv/pnv_service.dart';
 
 class GateWireClient {
@@ -44,6 +47,50 @@ class GateWireClient {
 
     final response = await _request('POST', '/verify-otp', body);
     return OtpVerificationResponse.fromJson(response);
+  }
+
+  /// Platform-aware phone verification.
+  ///
+  /// On **Android**, performs full PNV (USSD dial + verify) via
+  /// [PnvService.dialAndVerify]. Returns a [PhoneVerificationResult] with
+  /// [PhoneVerificationResult.verified] set immediately.
+  ///
+  /// On **iOS, web, and desktop**, falls back to OTP: dispatches an SMS via
+  /// [dispatch] and returns a [PhoneVerificationResult] with
+  /// [PhoneVerificationResult.method] set to [VerificationMethod.otp] and
+  /// [PhoneVerificationResult.verified] as `null`. The caller must prompt the
+  /// user for the SMS code and call [verifyOtp] with the returned
+  /// [PhoneVerificationResult.referenceId].
+  ///
+  /// [onSessionCreated] is forwarded to [PnvService.dialAndVerify] on Android
+  /// and is never invoked on other platforms.
+  ///
+  /// Throws [GateWireException] on any API or USSD error.
+  Future<PhoneVerificationResult> verifyPhone({
+    required String phoneNumber,
+    String? templateKey,
+    void Function(PnvSession session)? onSessionCreated,
+  }) async {
+    if (Platform.isAndroid) {
+      final result = await pnv.dialAndVerify(
+        phoneNumber: phoneNumber,
+        onSessionCreated: onSessionCreated,
+      );
+      return PhoneVerificationResult(
+        method: VerificationMethod.pnv,
+        verified: result.verified,
+        message: result.message,
+      );
+    }
+
+    // Non-Android fallback: dispatch OTP via SMS.
+    final response = await dispatch(phone: phoneNumber, templateKey: templateKey);
+    return PhoneVerificationResult(
+      method: VerificationMethod.otp,
+      verified: null,
+      referenceId: response.referenceId,
+      message: 'OTP sent via SMS. Enter the code to complete verification.',
+    );
   }
 
   Future<Map<String, dynamic>> _request(

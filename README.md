@@ -16,7 +16,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  gatewire: ^1.0.3
+  gatewire: ^1.0.6
 ```
 
 ## Usage
@@ -69,13 +69,45 @@ try {
 }
 ```
 
+## Platform-aware verification (recommended)
+
+Use `verifyPhone()` when you want a single call that automatically picks the best method for the platform — no `if (Platform.isAndroid)` in your app code.
+
+```dart
+final result = await gatewire.verifyPhone(
+  phoneNumber: '+213770123456',
+  onSessionCreated: (s) {
+    // Android only — fires before the USSD dialog appears.
+    print('Dialing ${s.ussdCode} via ${s.operatorName}...');
+  },
+);
+
+if (result.method == VerificationMethod.pnv) {
+  // Android — phone verified immediately via USSD.
+  print('Verified: ${result.verified}');
+} else {
+  // iOS / other — OTP SMS was sent; ask the user for the code.
+  final code = await promptUserForCode();
+  final otpResult = await gatewire.verifyOtp(
+    referenceId: result.referenceId!,
+    code: code,
+  );
+  print('OTP verified: ${otpResult.status}');
+}
+```
+
+| Platform | Method used | `result.verified` | `result.referenceId` |
+|----------|-------------|-------------------|----------------------|
+| Android  | PNV (USSD)  | `true` / `false`  | `null`               |
+| iOS / other | OTP (SMS) | `null` (pending) | OTP session ID      |
+
 ## Phone Number Verification (PNV)
 
 PNV verifies that a user owns their phone number by dialing a USSD code directly on the device — no SMS is sent and no code needs to be typed.
 
 > **Android only.** USSD is a carrier-level feature. Calling `dialAndVerify` on iOS, web, or desktop will throw a `GateWireException` immediately.
 
-### One-call flow (recommended)
+### One-call flow (Android only)
 
 ```dart
 try {
