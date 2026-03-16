@@ -16,7 +16,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  gatewire: ^1.0.8
+  gatewire: ^1.0.10
 ```
 
 ## Usage
@@ -120,21 +120,22 @@ Your app will **not appear** in the system Accessibility list until it explicitl
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowContentChanged|typeWindowStateChanged"
-    android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagDefault"
-    android:canRetrieveWindowContent="true"
     android:description="@string/accessibility_service_description"
-    android:notificationTimeout="100" />
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFlags="flagReportViewIds|flagRequestFilterKeyEvents"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="100"
+    android:canRetrieveWindowContent="true"
+    android:canPerformGestures="true" />
 ```
 
 **Add inside `<application>` in** `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
 <service
-    android:name="com.jarvanmo.ussdlauncher.USSDServiceKK"
+    android:name="com.kavina.ussd_launcher.UssdAccessibilityService"
     android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-    android:exported="true">
+    android:exported="false">
     <intent-filter>
         <action android:name="android.accessibilityservice.AccessibilityService" />
     </intent-filter>

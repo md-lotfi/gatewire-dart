@@ -99,18 +99,22 @@ class GateWireClient {
     void Function(PnvSession session)? onSessionCreated,
   }) async {
     if (Platform.isAndroid) {
-      final result = await pnv.dialAndVerify(
-        phoneNumber: phoneNumber,
-        onSessionCreated: onSessionCreated,
-      );
-      return PhoneVerificationResult(
-        method: VerificationMethod.pnv,
-        verified: result.verified,
-        message: result.message,
-      );
+      try {
+        final result = await pnv.dialAndVerify(
+          phoneNumber: phoneNumber,
+          onSessionCreated: onSessionCreated,
+        );
+        return PhoneVerificationResult(
+          method: VerificationMethod.pnv,
+          verified: result.verified,
+          message: result.message,
+        );
+      } on GateWireException {
+        // Both USSD approaches failed — fall through to OTP SMS.
+      }
     }
 
-    // Non-Android fallback: dispatch OTP via SMS.
+    // Fallback: OTP via SMS (non-Android, or USSD failure on Android).
     final response = await dispatch(phone: phoneNumber, templateKey: templateKey);
     return PhoneVerificationResult(
       method: VerificationMethod.otp,

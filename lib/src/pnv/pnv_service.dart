@@ -108,6 +108,7 @@ class PnvService {
   Future<PnvResult> dialAndVerify({
     required String phoneNumber,
     void Function(PnvSession session)? onSessionCreated,
+    int simSlotIndex = 0,
   }) async {
     if (!Platform.isAndroid) {
       throw GateWireException('USSD dialing is only supported on Android.');
@@ -116,22 +117,65 @@ class PnvService {
     final session = await initiate(phoneNumber: phoneNumber);
     onSessionCreated?.call(session);
 
-    String ussdResponse;
+    // ── Approach 1: sendUssdRequest ──────────────────────────────────────
+    // Fast, no UI. Blocked by many carriers — silently falls through on error.
     try {
-      ussdResponse = await UssdLauncher.sendUssdRequest(
-            ussdCode: session.ussdCode,
-            subscriptionId: -1, // -1 selects the default SIM
-          ) ??
-          '';
-    } on PlatformException catch (e) {
-      throw GateWireException('USSD dialing failed: ${e.message}');
-    } on UnsupportedError catch (e) {
-      throw GateWireException('USSD not supported on this device: $e');
+      final response = await UssdLauncher.sendUssdRequest(
+        ussdCode: session.ussdCode,
+        subscriptionId: -1,
+      );
+      if (response != null && response.isNotEmpty) {
+        return verify(referenceId: session.referenceId, ussdResponse: response);
+      }
+    } on PlatformException {
+      // Carrier blocked sendUssdRequest — try Approach 2.
+    } on UnsupportedError {
+      // API level too low — try Approach 2.
     }
 
-    return verify(
-      referenceId: session.referenceId,
-      ussdResponse: ussdResponse,
+    // ── Approach 2: multisessionUssd ─────────────────────────────────────
+    // Opens phone dialer, Accessibility Service reads dialogs and pushes
+    // responses via setUssdMessageListener. The Future resolves after the
+    // final response is delivered, so the last captured message is the
+    // carrier's final response string.
+    final parsed = _parseUssdCode(session.ussdCode);
+    String lastResponse = '';
+    UssdLauncher.setUssdMessageListener((msg) => lastResponse = msg);
+    try {
+      await UssdLauncher.multisessionUssd(
+        code: parsed.base,
+        options: parsed.options,
+        slotIndex: simSlotIndex,
+        initialDelayMs: 2000,
+        optionDelayMs: 1500,
+      );
+    } on PlatformException catch (e) {
+      throw GateWireException('USSD dialing failed: ${e.message}');
+    } finally {
+      UssdLauncher.removeUssdMessageListener();
+    }
+
+    if (lastResponse.isEmpty) {
+      throw GateWireException('No USSD response received from carrier.');
+    }
+
+    return verify(referenceId: session.referenceId, ussdResponse: lastResponse);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /// Parses a full USSD code like `*113*1*1#` into a base code and menu
+  /// options suitable for [UssdLauncher.multisessionUssd].
+  ///
+  /// Examples:
+  /// - `*113*1*1#` → base: `*113#`, options: `['1', '1']`
+  /// - `*555#`     → base: `*555#`, options: `[]`
+  ({String base, List<String> options}) _parseUssdCode(String code) {
+    final inner = code.replaceFirst('*', '').replaceAll('#', '');
+    final parts = inner.split('*');
+    return (
+      base: '*${parts.first}#',
+      options: parts.length > 1 ? parts.sublist(1) : <String>[],
     );
   }
 
