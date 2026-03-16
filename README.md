@@ -16,7 +16,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  gatewire: ^1.0.7
+  gatewire: ^1.0.8
 ```
 
 ## Usage
@@ -53,7 +53,7 @@ final response = await gatewire.dispatch(
 );
 ```
 
-### 2. Verify a CODE
+### 4. Verify a CODE
 
 ```dart
 try {
@@ -126,7 +126,8 @@ try {
     print('Verification failed: ${result.message}');
   }
 } on GateWireException catch (e) {
-  print('PNV error: ${e.message} (code: ${e.statusCode})');
+  // e.code == 'service_disabled' when PNV is not enabled for your account.
+  print('PNV error: ${e.message} (status: ${e.statusCode}, code: ${e.code})');
 }
 ```
 
@@ -145,6 +146,48 @@ final result = await gatewire.pnv.verify(
   ussdResponse: rawUssdResponseString,
 );
 print('Verified: ${result.verified}');
+```
+
+## Service Discovery
+
+Check which services are enabled for your API key before showing verification UI.
+Results are cached for 5 minutes automatically.
+
+```dart
+final catalog = await gatewire.services.fetchCatalog();
+
+if (catalog.otp.enabled) {
+  // Show OTP option — works on all platforms.
+  print('OTP: ${catalog.otp.pricePerRequestCents} ${catalog.otp.currency} / request');
+}
+
+if (catalog.isPnvAvailableOnThisDevice) {
+  // Show PNV option — only true when backend-enabled AND running on Android.
+  print('PNV: ${catalog.pnv.pricePerRequestCents} ${catalog.pnv.currency} / request');
+}
+```
+
+`isPnvAvailableOnThisDevice` combines both checks (`pnv.enabled && Platform.isAndroid`) so you never need to write that condition yourself.
+
+To force a refresh (e.g. after the user enables a service in your settings UI):
+
+```dart
+gatewire.services.invalidateCache();
+final fresh = await gatewire.services.fetchCatalog();
+```
+
+### Service-disabled errors
+
+If a service is disabled and you call it anyway, a `GateWireException` is thrown with `code == 'service_disabled'`:
+
+```dart
+try {
+  await gatewire.dispatch(phone: '+213555123456');
+} on GateWireException catch (e) {
+  if (e.code == 'service_disabled') {
+    print('OTP is not enabled. Visit your dashboard to activate it.');
+  }
+}
 ```
 
 ## License
