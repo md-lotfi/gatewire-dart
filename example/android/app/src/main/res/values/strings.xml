@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GateWire Example</string>
+    <string name="accessibility_service_description">
+        Required to capture USSD responses for phone number verification.
+    </string>
+</resources>
