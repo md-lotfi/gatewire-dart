@@ -107,6 +107,112 @@ PNV verifies that a user owns their phone number by dialing a USSD code directly
 
 > **Android only.** USSD is a carrier-level feature. Calling `dialAndVerify` on iOS, web, or desktop will throw a `GateWireException` immediately.
 
+### Prerequisites — Accessibility Service
+
+`ussd_launcher` reads the carrier's USSD response dialog using Android's **Accessibility Service**. Without it the USSD code can be dialed but the response string cannot be captured, so verification will fail.
+
+#### Step 1 — Declare the service in your app's Android manifest
+
+Your app will **not appear** in the system Accessibility list until it explicitly registers an `AccessibilityService`. This is required — Android will not list apps that haven't declared one.
+
+**Create** `android/app/src/main/res/xml/accessibility_service_config.xml`:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowContentChanged|typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="100" />
+```
+
+**Add inside `<application>` in** `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<service
+    android:name="com.jarvanmo.ussdlauncher.USSDServiceKK"
+    android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+    </intent-filter>
+    <meta-data
+        android:name="android.accessibilityservice"
+        android:resource="@xml/accessibility_service_config" />
+</service>
+```
+
+**Add inside `<manifest>`:**
+
+```xml
+<uses-permission android:name="android.permission.CALL_PHONE" />
+```
+
+**Add to** `android/app/src/main/res/values/strings.xml` (create if missing):
+
+```xml
+<resources>
+    <string name="app_name">YourAppName</string>
+    <string name="accessibility_service_description">
+        Required to capture USSD responses for phone number verification.
+    </string>
+</resources>
+```
+
+Then do a clean rebuild:
+
+```bash
+flutter clean && flutter run
+```
+
+#### Step 2 — User enables it (once)
+
+After the rebuild your app will appear in the system list. You cannot request this permission programmatically — deep-link the user to the settings screen:
+
+```dart
+// Using android_intent_plus or similar
+AndroidIntent(
+  action: 'android.settings.ACCESSIBILITY_SETTINGS',
+).launch();
+```
+
+> **Samsung One UI (Android 13+):** the path is
+> **Settings → Accessibility → Installed apps → Your App → toggle on**
+
+#### Recommended UX pattern
+
+```dart
+final catalog = await gatewire.services.fetchCatalog();
+
+if (catalog.isPnvAvailableOnThisDevice) {
+  final hasAccess = await checkAccessibilityEnabled(); // your own check
+  if (!hasAccess) {
+    // Show a one-time onboarding card explaining why,
+    // then deep-link to Accessibility Settings.
+    // Do NOT block the user — fall back to OTP if they decline.
+    await gatewire.dispatch(phone: phoneNumber); // OTP fallback
+    return;
+  }
+  // Proceed with PNV
+  final result = await gatewire.pnv.dialAndVerify(phoneNumber: phoneNumber);
+}
+```
+
+> **Tip:** `verifyPhone()` handles this fallback automatically. If `ussd_launcher` throws because the Accessibility Service is missing or disabled, it falls back to OTP. Prefer `verifyPhone()` over calling `pnv.dialAndVerify()` directly.
+
+**Devices where Accessibility Service may be blocked:**
+
+| Scenario | Behaviour |
+|---|---|
+| Manifest not configured / first install | App absent from Accessibility list — rebuild required |
+| User declines to enable it | USSD response not captured → fall back to OTP |
+| Enterprise MDM / managed device | Accessibility Services may be disabled system-wide |
+| Some OEM ROMs (e.g. MIUI, HyperOS) | May restrict third-party Accessibility Services |
+
+In all cases the recommended approach is to detect the failure and **silently fall back to OTP** rather than blocking the user.
+
 ### One-call flow (Android only)
 
 ```dart
