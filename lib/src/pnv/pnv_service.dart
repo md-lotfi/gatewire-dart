@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 
@@ -140,7 +141,20 @@ class PnvService {
     // carrier's final response string.
     final parsed = _parseUssdCode(session.ussdCode);
     String lastResponse = '';
-    UssdLauncher.setUssdMessageListener((msg) => lastResponse = msg);
+    final sessionDone = Completer<void>();
+
+    UssdLauncher.setUssdMessageListener((msg) {
+      if (_isSentinel(msg)) {
+        if (msg == 'SESSION_COMPLETED' && !sessionDone.isCompleted) {
+          sessionDone.complete();
+        } else if (!sessionDone.isCompleted) {
+          sessionDone.completeError(msg);
+        }
+      } else {
+        lastResponse = msg;
+      }
+    });
+
     try {
       await UssdLauncher.multisessionUssd(
         code: parsed.base,
@@ -149,6 +163,10 @@ class PnvService {
         initialDelayMs: 2000,
         optionDelayMs: 1500,
       );
+      // Wait for SESSION_COMPLETED to ensure all responseInvoke callbacks
+      // have been delivered before reading lastResponse.
+      await sessionDone.future.timeout(const Duration(seconds: 8),
+          onTimeout: () {});
     } on PlatformException catch (e) {
       throw GateWireException('USSD dialing failed: ${e.message}');
     } finally {
@@ -170,6 +188,20 @@ class PnvService {
   /// Examples:
   /// - `*113*1*1#` → base: `*113#`, options: `['1', '1']`
   /// - `*555#`     → base: `*555#`, options: `[]`
+  static const _sentinels = {
+    'SESSION_COMPLETED',
+    'ACCESSIBILITY_NOT_ENABLED',
+    'ACCESSIBILITY_OR_OVERLAY_NOT_ENABLED',
+    'BAD_MAPPING_STRUCTURE',
+    'EMPTY_USSD_CODE',
+  };
+
+  bool _isSentinel(String msg) =>
+      _sentinels.contains(msg) ||
+      msg.startsWith('SESSION_END_ERROR:') ||
+      msg.startsWith('SEND_OPTION_ERROR:') ||
+      msg.startsWith('DIAL_ERROR:');
+
   ({String base, List<String> options}) _parseUssdCode(String code) {
     final inner = code.replaceFirst('*', '').replaceAll('#', '');
     final parts = inner.split('*');

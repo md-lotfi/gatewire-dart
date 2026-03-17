@@ -7,3 +7,4 @@ export 'src/pnv/models/pnv_result.dart';
 export 'src/phone_verification_result.dart';
 export 'src/services/services_service.dart';
 export 'src/services/models/service_catalog.dart';
+export 'src/widgets/ussd_session_banner.dart';

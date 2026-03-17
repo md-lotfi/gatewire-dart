@@ -168,40 +168,133 @@ Then do a clean rebuild:
 flutter clean && flutter run
 ```
 
-#### Step 2 — User enables it (once)
+#### Step 2 — Check and guide the user at runtime
 
-After the rebuild your app will appear in the system list. You cannot request this permission programmatically — deep-link the user to the settings screen:
+The Accessibility Service cannot be requested programmatically like a normal permission. Use `UssdLauncher.isAccessibilityEnabled()` to check, then open the system settings screen if needed.
+
+The recommended pattern uses `WidgetsBindingObserver` to detect when the user returns from Settings and re-checks automatically — no polling required:
 
 ```dart
-// Using android_intent_plus or similar
-AndroidIntent(
-  action: 'android.settings.ACCESSIBILITY_SETTINGS',
-).launch();
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:ussd_launcher/ussd_launcher.dart';
+
+class _MyScreenState extends State<MyScreen> with WidgetsBindingObserver {
+  Completer<void>? _accessibilityCompleter;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Auto-unblocks the PNV flow when the user returns from Settings
+  /// with the service now enabled.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final c = _accessibilityCompleter;
+    if (c == null || c.isCompleted) return;
+    UssdLauncher.isAccessibilityEnabled().then((enabled) {
+      if (enabled && !c.isCompleted) c.complete();
+    });
+  }
+
+  /// Returns true when ready to dial, false if the user cancelled.
+  Future<bool> _ensureAccessibility() async {
+    if (await UssdLauncher.isAccessibilityEnabled()) return true;
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.accessibility_new, size: 36),
+        title: const Text('Accessibility required'),
+        content: const Text(
+          'To verify your number via USSD, enable the Accessibility '
+          'Service once.\n\n'
+          'Settings → Accessibility → Installed apps → '
+          '<Your App> → toggle ON\n\n'
+          'Return here after enabling — verification starts automatically.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed != true) return false;
+
+    _accessibilityCompleter = Completer<void>();
+    await UssdLauncher.openAccessibilitySettings();
+
+    // Wait for the user to enable the service and return to the app.
+    await _accessibilityCompleter!.future;
+    _accessibilityCompleter = null;
+
+    return UssdLauncher.isAccessibilityEnabled();
+  }
+}
 ```
+
+> **Important:** Enabling an Accessibility Service causes Android to restart the app process. During development (`flutter run`) this drops the debug connection — this is expected. In a production APK the restart is invisible to the user. Enable the service once **before** starting a `flutter run` session to avoid the reconnect step.
 
 > **Samsung One UI (Android 13+):** the path is
 > **Settings → Accessibility → Installed apps → Your App → toggle on**
 
-#### Recommended UX pattern
+#### Showing a "Do not touch" banner during the USSD session
+
+Android USSD dialogs are system-level windows that appear above all app content and **cannot be hidden or blocked** by the app. The recommended UX is to show a compact banner pinned to the top of the screen before dialing — it remains visible above the app layer while the USSD dialog appears in the centre/bottom.
+
+The SDK ships a ready-made `UssdSessionBanner` widget — no custom widget needed:
 
 ```dart
-final catalog = await gatewire.services.fetchCatalog();
+import 'package:gatewire_dart/gatewire_dart.dart';
 
-if (catalog.isPnvAvailableOnThisDevice) {
-  final hasAccess = await checkAccessibilityEnabled(); // your own check
-  if (!hasAccess) {
-    // Show a one-time onboarding card explaining why,
-    // then deep-link to Accessibility Settings.
-    // Do NOT block the user — fall back to OTP if they decline.
-    await gatewire.dispatch(phone: phoneNumber); // OTP fallback
-    return;
-  }
-  // Proceed with PNV
-  final result = await gatewire.pnv.dialAndVerify(phoneNumber: phoneNumber);
+OverlayEntry? _ussdBanner;
+
+void _showBanner(String ussdCode) {
+  _ussdBanner = OverlayEntry(
+    builder: (_) => UssdSessionBanner(ussdCode: ussdCode),
+  );
+  Overlay.of(context).insert(_ussdBanner!);
+}
+
+void _hideBanner() {
+  _ussdBanner?.remove();
+  _ussdBanner = null;
 }
 ```
 
-> **Tip:** `verifyPhone()` handles this fallback automatically. If `ussd_launcher` throws because the Accessibility Service is missing or disabled, it falls back to OTP. Prefer `verifyPhone()` over calling `pnv.dialAndVerify()` directly.
+Always remove it in a `finally` block:
+
+```dart
+_showBanner(session.ussdCode);
+try {
+  await UssdLauncher.multisessionUssd(...);
+  // wait for SESSION_COMPLETED ...
+} finally {
+  _hideBanner();
+  UssdLauncher.removeUssdMessageListener();
+}
+```
+
+`UssdSessionBanner` renders a dark animated card at the top of the screen with a pulsing shield icon and a progress bar while the USSD session runs.
+
+> **Do NOT pass `overlayMessage`** to `multisessionUssd()`. The plugin's native overlay starts a foreground service that crashes on Android 14+ (API 34+) because `UssdOverlayService` lacks a required `foregroundServiceType` declaration. Use `UssdSessionBanner` instead.
 
 **Devices where Accessibility Service may be blocked:**
 
