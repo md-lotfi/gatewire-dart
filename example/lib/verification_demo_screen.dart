@@ -9,7 +9,7 @@ import 'package:ussd_launcher/ussd_launcher.dart';
 import 'ussd_tester_screen.dart';
 
 // Replace with your API key from https://gatewire.net
-const _apiKey = '115|Adnbx94nJ3X7WPdp944DeeKHYmMxfeu5Vlmi6oKs9160c83f';
+const _apiKey = 'YOUR_API_KEY_HERE';
 
 final _gatewire = GateWireClient(apiKey: _apiKey);
 
