@@ -16,7 +16,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  gatewire: ^1.0.10
+  gatewire: ^1.0.11
 ```
 
 ## Usage
