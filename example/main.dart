@@ -1,7 +1,9 @@
 import 'package:gatewire_dart/gatewire_dart.dart';
 
 void main() async {
-  final client = GateWireClient(apiKey: 'your-api-key');
+  final client = GateWireClient(
+    apiKey: '116|vt2hsV6qp7F9QQqK2kRIIiV88TGQc8iYxIToCUUfe2d872d1',
+  );
 
   // Send an OTP
   try {

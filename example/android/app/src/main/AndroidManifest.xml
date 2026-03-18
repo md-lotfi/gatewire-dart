@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.CALL_PHONE" />
 
     <application
@@ -32,6 +33,18 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!--
+             Belt-and-suspenders fix for Android 14+ (API 34+) crash in UssdOverlayService.
+             ussd_launcher starts a foreground service that requires foregroundServiceType
+             on API 34+. shortService is the correct type for a brief USSD overlay.
+             tools:replace ensures this attribute wins over the library's declaration.
+        -->
+        <service
+            android:name="com.kavina.ussd_launcher.UssdOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="shortService"
+            tools:replace="android:foregroundServiceType" />
 
         <!-- Required by ussd_launcher to capture USSD responses via AccessibilityService -->
         <service

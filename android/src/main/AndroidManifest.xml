@@ -1,0 +1,25 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        Fix for Android 14+ (API 34+) crash in ussd_launcher's UssdOverlayService.
+
+        The crash:
+          MissingForegroundServiceTypeException: Starting FGS without a type
+
+        Root cause: UssdOverlayService calls startForeground() without a
+        foregroundServiceType, which Android 14+ (targetSdk ≥ 34) rejects.
+
+        Fix: declare android:foregroundServiceType="shortService" on the service.
+        shortService requires no additional permissions and is the correct type for
+        a brief, seconds-long USSD overlay that automatically ends with the session.
+
+        By declaring this in gatewire_dart's own manifest, all consuming apps
+        automatically receive the fix through Android's manifest merger — no
+        manual patching required in their AndroidManifest.xml.
+    -->
+    <application>
+        <service
+            android:name="com.kavina.ussd_launcher.UssdOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
+    </application>
+</manifest>

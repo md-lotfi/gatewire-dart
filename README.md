@@ -107,6 +107,9 @@ PNV verifies that a user owns their phone number by dialing a USSD code directly
 
 > **Android only.** USSD is a carrier-level feature. Calling `dialAndVerify` on iOS, web, or desktop will throw a `GateWireException` immediately.
 
+> **Android 14+ (API 34+) fix — included in v1.0.11+.**
+> `ussd_launcher` starts a foreground service (`UssdOverlayService`) that previously crashed with `MissingForegroundServiceTypeException` on Android 14+ when the native overlay was enabled. gatewire_dart v1.0.11 patches this automatically via manifest merger — no changes required in your app.
+
 ### Prerequisites — Accessibility Service
 
 `ussd_launcher` reads the carrier's USSD response dialog using Android's **Accessibility Service**. Without it the USSD code can be dialed but the response string cannot be captured, so verification will fail.
@@ -294,7 +297,8 @@ try {
 
 `UssdSessionBanner` renders a dark animated card at the top of the screen with a pulsing shield icon and a progress bar while the USSD session runs.
 
-> **Do NOT pass `overlayMessage`** to `multisessionUssd()`. The plugin's native overlay starts a foreground service that crashes on Android 14+ (API 34+) because `UssdOverlayService` lacks a required `foregroundServiceType` declaration. Use `UssdSessionBanner` instead.
+> **Prefer `UssdSessionBanner` over `overlayMessage`.**
+> The `overlayMessage` parameter starts a native foreground service that requires the `SYSTEM_ALERT_WINDOW` (draw-over-apps) permission — an unusual permission that most apps should not request. The Android 14+ (API 34+) crash from missing `foregroundServiceType` is patched in **gatewire_dart v1.0.11+**, but the `SYSTEM_ALERT_WINDOW` requirement remains. `UssdSessionBanner` is a pure-Flutter alternative that works without any extra permissions.
 
 **Devices where Accessibility Service may be blocked:**
 
@@ -330,6 +334,17 @@ try {
   print('PNV error: ${e.message} (status: ${e.statusCode}, code: ${e.code})');
 }
 ```
+
+#### Early-exit optimisation
+
+Some operators (e.g. Ooredoo Algeria) include the full phone number in the **first** USSD response, before any menu navigation. `dialAndVerify()` detects this automatically: the moment any carrier response matches a phone-number pattern it cancels the remaining menu options and proceeds directly to verification — typically saving 4–7 seconds per session.
+
+The matching pattern is:
+
+1. **Server-provided** — if `/pnv/initiate` returns a `phone_pattern` field (e.g. `r'\+213[0-9]{9}'` for Algeria), that regex is used.
+2. **Fallback** — when no pattern is returned, the SDK uses `r'\+?[0-9]{9,15}'`, which matches any 9–15 digit string with an optional `+` prefix.
+
+No code changes are required to benefit from this — it is built into `dialAndVerify()`.
 
 ### Manual two-step flow
 

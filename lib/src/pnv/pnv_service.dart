@@ -136,12 +136,17 @@ class PnvService {
 
     // ── Approach 2: multisessionUssd ─────────────────────────────────────
     // Opens phone dialer, Accessibility Service reads dialogs and pushes
-    // responses via setUssdMessageListener. The Future resolves after the
-    // final response is delivered, so the last captured message is the
-    // carrier's final response string.
+    // responses via setUssdMessageListener.
+    //
+    // Early-exit optimisation: some operators (e.g. Ooredoo) include the full
+    // phone number in the very first USSD response, before the menu navigation
+    // completes. When any carrier message matches the phone-number pattern we
+    // complete [sessionDone] immediately and cancel the native session, skipping
+    // any remaining menu options.
     final parsed = _parseUssdCode(session.ussdCode);
     String lastResponse = '';
     final sessionDone = Completer<void>();
+    bool earlyExit = false;
 
     UssdLauncher.setUssdMessageListener((msg) {
       if (_isSentinel(msg)) {
@@ -152,21 +157,35 @@ class PnvService {
         }
       } else {
         lastResponse = msg;
+        // Early exit: phone number visible now — no need to send further options.
+        if (!sessionDone.isCompleted &&
+            _containsPhoneNumber(msg, session.phonePattern)) {
+          earlyExit = true;
+          sessionDone.complete();
+        }
       }
     });
 
     try {
-      await UssdLauncher.multisessionUssd(
+      final dialFuture = UssdLauncher.multisessionUssd(
         code: parsed.base,
         options: parsed.options,
         slotIndex: simSlotIndex,
         initialDelayMs: 2000,
         optionDelayMs: 1500,
       );
-      // Wait for SESSION_COMPLETED to ensure all responseInvoke callbacks
-      // have been delivered before reading lastResponse.
-      await sessionDone.future.timeout(const Duration(seconds: 8),
-          onTimeout: () {});
+
+      // Race: all options sent normally OR phone number detected early.
+      await Future.any([dialFuture, sessionDone.future]);
+
+      if (earlyExit) {
+        // Stop the native session so no further menu options are auto-filled.
+        await UssdLauncher.cancelSession();
+      } else if (!sessionDone.isCompleted) {
+        // Normal path: wait for SESSION_COMPLETED sentinel.
+        await sessionDone.future.timeout(const Duration(seconds: 8),
+            onTimeout: () {});
+      }
     } on PlatformException catch (e) {
       throw GateWireException('USSD dialing failed: ${e.message}');
     } finally {
@@ -196,11 +215,18 @@ class PnvService {
     'EMPTY_USSD_CODE',
   };
 
+  /// Fallback phone-number regex used when the server does not provide one.
+  /// Matches 9–15 digit strings optionally prefixed with `+`.
+  static const _defaultPhonePattern = r'\+?[0-9]{9,15}';
+
   bool _isSentinel(String msg) =>
       _sentinels.contains(msg) ||
       msg.startsWith('SESSION_END_ERROR:') ||
       msg.startsWith('SEND_OPTION_ERROR:') ||
       msg.startsWith('DIAL_ERROR:');
+
+  bool _containsPhoneNumber(String msg, String? pattern) =>
+      RegExp(pattern ?? _defaultPhonePattern).hasMatch(msg);
 
   ({String base, List<String> options}) _parseUssdCode(String code) {
     final inner = code.replaceFirst('*', '').replaceAll('#', '');

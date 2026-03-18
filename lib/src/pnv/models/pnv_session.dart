@@ -18,12 +18,18 @@ class PnvSession {
   /// UTC timestamp after which this session can no longer be verified.
   final DateTime expiresAt;
 
+  /// Optional regex pattern provided by the server to detect phone numbers in
+  /// raw carrier USSD responses. When null, [PnvService] falls back to
+  /// `r'\+?[0-9]{9,15}'` (9–15 digits, optional `+` prefix).
+  final String? phonePattern;
+
   const PnvSession({
     required this.referenceId,
     required this.operatorName,
     required this.countryCode,
     required this.ussdCode,
     required this.expiresAt,
+    this.phonePattern,
   });
 
   /// Creates a [PnvSession] from the JSON map returned by `/pnv/initiate`.
@@ -34,6 +40,7 @@ class PnvSession {
       countryCode:  json['country_code']  as String,
       ussdCode:     json['ussd_code']     as String,
       expiresAt:    DateTime.parse(json['expires_at'] as String),
+      phonePattern: json['phone_pattern'] as String?,
     );
   }
 }
