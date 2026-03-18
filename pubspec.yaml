@@ -5,7 +5,7 @@ homepage: https://gatewire.net
 
 environment:
   sdk: ^3.9.2
-  flutter: ">=1.17.0"
+  flutter: ">=3.0.0"
 
 dependencies:
   flutter:
@@ -33,3 +33,5 @@ flutter:
       android:
         package: net.gatewire.gatewire_dart
         pluginClass: GatewireDartPlugin
+      ios:
+        pluginClass: none  # Android-only plugin; no iOS native code
